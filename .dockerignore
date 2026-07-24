@@ -1,0 +1,20 @@
+# Build artifacts
+bin/
+/payment-orchestration
+*.exe
+vendor/
+coverage.out
+*.testcoverage.out
+
+# Env & secrets
+.env
+*.log
+
+# Git & metadata
+.git/
+.gitignore
+.github/
+README.md
+
+# OS noise
+.DS_Store

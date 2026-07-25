@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ai-crypto-onramp/payment-orchestrator/internal/domain"
-	"github.com/ai-crypto-onramp/payment-orchestrator/internal/fraud"
-	"github.com/ai-crypto-onramp/payment-orchestrator/internal/rail"
+	"github.com/ai-crypto-onramp/orchestrator-fiat/internal/domain"
+	"github.com/ai-crypto-onramp/orchestrator-fiat/internal/fraud"
+	"github.com/ai-crypto-onramp/orchestrator-fiat/internal/rail"
 )
 
 type errFraudClient struct{ err error }

@@ -1,4 +1,4 @@
-module github.com/ai-crypto-onramp/payment-orchestrator
+module github.com/ai-crypto-onramp/orchestrator-fiat
 
 go 1.25.0
 

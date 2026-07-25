@@ -7,10 +7,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ai-crypto-onramp/payment-orchestrator/internal/domain"
-	"github.com/ai-crypto-onramp/payment-orchestrator/internal/logging"
-	"github.com/ai-crypto-onramp/payment-orchestrator/internal/metrics"
-	"github.com/ai-crypto-onramp/payment-orchestrator/internal/store"
+	"github.com/ai-crypto-onramp/orchestrator-fiat/internal/domain"
+	"github.com/ai-crypto-onramp/orchestrator-fiat/internal/logging"
+	"github.com/ai-crypto-onramp/orchestrator-fiat/internal/metrics"
+	"github.com/ai-crypto-onramp/orchestrator-fiat/internal/store"
 )
 
 func TestWorkerProcessesAndDrains(t *testing.T) {

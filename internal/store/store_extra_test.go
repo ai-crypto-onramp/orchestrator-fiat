@@ -3,7 +3,7 @@ package store
 import (
 	"testing"
 
-	"github.com/ai-crypto-onramp/payment-orchestrator/internal/domain"
+	"github.com/ai-crypto-onramp/orchestrator-fiat/internal/domain"
 )
 
 func TestErrNotFoundMessage(t *testing.T) {

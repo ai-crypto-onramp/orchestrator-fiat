@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/ai-crypto-onramp/payment-orchestrator/internal/domain"
+	"github.com/ai-crypto-onramp/orchestrator-fiat/internal/domain"
 )
 
 func TestHTTPClientScoreOK(t *testing.T) {

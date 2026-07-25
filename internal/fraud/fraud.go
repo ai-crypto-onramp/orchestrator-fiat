@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/ai-crypto-onramp/payment-orchestrator/internal/domain"
+	"github.com/ai-crypto-onramp/orchestrator-fiat/internal/domain"
 )
 
 // Decision is the fraud evaluation outcome for an intent.

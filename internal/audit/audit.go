@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ai-crypto-onramp/payment-orchestrator/internal/domain"
+	"github.com/ai-crypto-onramp/orchestrator-fiat/internal/domain"
 	"github.com/segmentio/kafka-go"
 )
 

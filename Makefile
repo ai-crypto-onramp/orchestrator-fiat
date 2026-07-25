@@ -16,10 +16,10 @@ cover: test
 	go tool cover -func=coverage.out | tail -1
 
 docker-build:
-	docker build -t ai-crypto-onramp/payment-orchestrator .
+	docker build -t ai-crypto-onramp/orchestrator-fiat .
 
 docker-run:
-	docker run --rm -p 8080:8080 ai-crypto-onramp/payment-orchestrator
+	docker run --rm -p 8080:8080 ai-crypto-onramp/orchestrator-fiat
 
 clean:
 	rm -rf bin/ coverage.out

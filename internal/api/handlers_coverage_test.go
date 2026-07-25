@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ai-crypto-onramp/payment-orchestrator/internal/config"
-	"github.com/ai-crypto-onramp/payment-orchestrator/internal/domain"
-	"github.com/ai-crypto-onramp/payment-orchestrator/internal/mpi"
-	"github.com/ai-crypto-onramp/payment-orchestrator/internal/rail"
+	"github.com/ai-crypto-onramp/orchestrator-fiat/internal/config"
+	"github.com/ai-crypto-onramp/orchestrator-fiat/internal/domain"
+	"github.com/ai-crypto-onramp/orchestrator-fiat/internal/mpi"
+	"github.com/ai-crypto-onramp/orchestrator-fiat/internal/rail"
 )
 
 func TestApplyConfigSetsWebhookKeysAndReplay(t *testing.T) {

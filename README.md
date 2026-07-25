@@ -1,7 +1,7 @@
 # Payment Orchestration
 
-![CI](https://github.com/ai-crypto-onramp/payment-orchestrator/actions/workflows/ci.yml/badge.svg)
-[![codecov](https://codecov.io/gh/ai-crypto-onramp/payment-orchestrator/branch/main/graph/badge.svg)](https://codecov.io/gh/ai-crypto-onramp/payment-orchestrator)
+![CI](https://github.com/ai-crypto-onramp/orchestrator-fiat/actions/workflows/ci.yml/badge.svg)
+[![codecov](https://codecov.io/gh/ai-crypto-onramp/orchestrator-fiat/branch/main/graph/badge.svg)](https://codecov.io/gh/ai-crypto-onramp/orchestrator-fiat)
 
 Fiat ingress service that normalizes payment intents across rails and manages the full card/lifecycle from 3DS through settlement and disputes.
 

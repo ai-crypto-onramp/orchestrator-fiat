@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ai-crypto-onramp/payment-orchestrator/internal/domain"
-	"github.com/ai-crypto-onramp/payment-orchestrator/internal/mtls"
+	"github.com/ai-crypto-onramp/orchestrator-fiat/internal/domain"
+	"github.com/ai-crypto-onramp/orchestrator-fiat/internal/mtls"
 )
 
 // DevMode reports whether DEV_MODE=1 is set. When true, stub/stand-in clients

@@ -11,9 +11,9 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/ai-crypto-onramp/payment-orchestration/internal/domain"
-	"github.com/ai-crypto-onramp/payment-orchestration/internal/store"
-	"github.com/ai-crypto-onramp/payment-orchestration/internal/store/migrations"
+	"github.com/ai-crypto-onramp/payment-orchestrator/internal/domain"
+	"github.com/ai-crypto-onramp/payment-orchestrator/internal/store"
+	"github.com/ai-crypto-onramp/payment-orchestrator/internal/store/migrations"
 )
 
 type DB struct {

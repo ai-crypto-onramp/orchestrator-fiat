@@ -3,7 +3,7 @@ package mpi
 import (
 	"errors"
 
-	"github.com/ai-crypto-onramp/payment-orchestration/internal/domain"
+	"github.com/ai-crypto-onramp/payment-orchestrator/internal/domain"
 )
 
 // Challenge is the artifact returned to the client to perform a 3DS challenge.

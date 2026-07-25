@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/ai-crypto-onramp/payment-orchestration/internal/domain"
+	"github.com/ai-crypto-onramp/payment-orchestrator/internal/domain"
 )
 
 func TestDummyChallenge(t *testing.T) {

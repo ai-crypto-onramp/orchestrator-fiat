@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ai-crypto-onramp/payment-orchestration/internal/domain"
+	"github.com/ai-crypto-onramp/payment-orchestrator/internal/domain"
 )
 
 type Store interface {

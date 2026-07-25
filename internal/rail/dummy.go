@@ -3,7 +3,7 @@ package rail
 import (
 	"errors"
 
-	"github.com/ai-crypto-onramp/payment-orchestration/internal/domain"
+	"github.com/ai-crypto-onramp/payment-orchestrator/internal/domain"
 )
 
 // Adapter is the interface every rail implements. All rails in this simplified

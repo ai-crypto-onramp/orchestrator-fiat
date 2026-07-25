@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/ai-crypto-onramp/payment-orchestration/internal/domain"
+	"github.com/ai-crypto-onramp/payment-orchestrator/internal/domain"
 )
 
 func TestDummyScore(t *testing.T) {

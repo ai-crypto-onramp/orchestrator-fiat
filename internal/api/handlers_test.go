@@ -12,11 +12,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ai-crypto-onramp/payment-orchestration/internal/audit"
-	"github.com/ai-crypto-onramp/payment-orchestration/internal/domain"
-	"github.com/ai-crypto-onramp/payment-orchestration/internal/fraud"
-	"github.com/ai-crypto-onramp/payment-orchestration/internal/rail"
-	"github.com/ai-crypto-onramp/payment-orchestration/internal/store"
+	"github.com/ai-crypto-onramp/payment-orchestrator/internal/audit"
+	"github.com/ai-crypto-onramp/payment-orchestrator/internal/domain"
+	"github.com/ai-crypto-onramp/payment-orchestrator/internal/fraud"
+	"github.com/ai-crypto-onramp/payment-orchestrator/internal/rail"
+	"github.com/ai-crypto-onramp/payment-orchestrator/internal/store"
 )
 
 // newTestService returns a service backed by the given dummy adapter and a

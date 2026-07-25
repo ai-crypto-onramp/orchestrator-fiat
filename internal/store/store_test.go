@@ -5,7 +5,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/ai-crypto-onramp/payment-orchestration/internal/domain"
+	"github.com/ai-crypto-onramp/payment-orchestrator/internal/domain"
 )
 
 func TestCreateAndGet(t *testing.T) {

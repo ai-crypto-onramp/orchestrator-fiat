@@ -1,4 +1,4 @@
-module github.com/ai-crypto-onramp/payment-orchestration
+module github.com/ai-crypto-onramp/payment-orchestrator
 
 go 1.25.0
 

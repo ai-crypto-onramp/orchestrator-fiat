@@ -3,6 +3,7 @@ package webhook
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/ai-crypto-onramp/orchestrator-fiat/internal/domain"
@@ -26,8 +27,9 @@ type Worker struct {
 	metrics *metrics.Metrics
 	logger  *logging.Logger
 
-	stopCh chan struct{}
-	wg     sync.WaitGroup
+	inflight atomic.Int64
+	stopCh   chan struct{}
+	wg       sync.WaitGroup
 }
 
 // New returns a Worker ready to start. The buffer size bounds the in-flight
@@ -85,6 +87,7 @@ func (w *Worker) run() {
 			return
 		case wh := <-w.queue:
 			w.metrics.DecWebhookBacklog()
+			w.inflight.Add(1)
 			if err := w.handler(nil); err != nil {
 				w.logger.Warn("webhook handler error", map[string]interface{}{
 					"external_event_id": wh.ExternalEventID,
@@ -92,6 +95,7 @@ func (w *Worker) run() {
 				})
 			}
 			w.store.MarkWebhookProcessed(wh.Rail, wh.ExternalEventID)
+			w.inflight.Add(-1)
 		}
 	}
 }
@@ -105,13 +109,14 @@ func (w *Worker) Stop() {
 // Backlog returns the current number of unprocessed webhooks in the queue.
 func (w *Worker) Backlog() int { return len(w.queue) }
 
-// Idle blocks until the queue is drained or ctx is canceled.
+// Idle blocks until the queue is drained and all in-flight handlers have
+// completed, or ctx is canceled.
 func (w *Worker) Idle(ctx context.Context, poll time.Duration) error {
 	if poll <= 0 {
 		poll = 50 * time.Millisecond
 	}
 	for {
-		if w.Backlog() == 0 {
+		if w.Backlog() == 0 && w.inflight.Load() == 0 {
 			return nil
 		}
 		select {

@@ -47,27 +47,62 @@ func newService(cfg config.Config) *api.Service {
 		logger.Warn("DEV_MODE=1: stub clients in use — NOT FOR PRODUCTION", nil)
 	}
 	sink := newAuditSink(devMode)
-	if devMode {
-		dummy := rail.NewDummy()
-		registry := rail.NewRegistry(dummy)
-		svc := api.NewService(st, registry, sink, cfg.WebhookSecret("card"))
-		svc.ApplyConfig(cfg)
-		svc.MPI = mpi.NewDummy()
-		svc.Fraud = fraud.NewDummy()
-		svc.Logger = logger
-		return svc
-	}
-	_ = config.MustEnvOrFatal("RAIL_CONNECTORS_URL", "RAIL_CONNECTORS_URL required in production mode; real rail client not yet implemented — set DEV_MODE=1 for local dev")
-	_ = config.MustEnvOrFatal("MPI_URL", "MPI_URL required in production mode; real MPI client not yet implemented — set DEV_MODE=1 for local dev")
-	fraudURL := config.MustEnv("FRAUD_DETECTION_URL")
-	svc := api.NewService(st, rail.NewRegistry(rail.NewDummy()), sink, cfg.WebhookSecret("card"))
+	registry := newRailRegistry(cfg, devMode)
+	mpiClient := newMPIClient(cfg, devMode)
+	fraudClient := newFraudClient(cfg, devMode)
+	svc := api.NewService(st, registry, sink, cfg.WebhookSecret("card"))
 	svc.ApplyConfig(cfg)
-	svc.MPI = mpi.NewDummy()
-	if fraudURL != "" {
-		svc.Fraud = fraud.NewHTTP(fraudURL)
-	}
+	svc.MPI = mpiClient
+	svc.Fraud = fraudClient
 	svc.Logger = logger
 	return svc
+}
+
+// newRailRegistry builds the rail.Registry. A real per-rail HTTP connector
+// implementation does not yet exist in this service; in production (DEV_MODE
+// unset) we refuse to start with a clear message and require at least one
+// RAIL_*_URL to be configured. When DEV_MODE=1 the DummyAdapter is used.
+func newRailRegistry(cfg config.Config, devMode bool) *rail.Registry {
+	if devMode {
+		log.Printf("DEV_MODE=1: using rail.NewDummy() adapter for all rails — NOT FOR PRODUCTION")
+		return rail.NewRegistry(rail.NewDummy())
+	}
+	enabled := cfg.EnabledRails()
+	if len(enabled) == 0 {
+		log.Fatalf("no RAIL_*_URL configured and DEV_MODE!=1; real rail client not yet implemented — set DEV_MODE=1 for local dev or provide RAIL_CARD_URL/RAIL_ACH_URL/RAIL_SEPA_URL/RAIL_PIX_URL/RAIL_UPI_URL")
+	}
+	log.Fatalf("real rail HTTP client not yet implemented (configured rails: %v) — set DEV_MODE=1 for local dev", enabled)
+	return nil
+}
+
+// newMPIClient builds the 3DS MPI client. A real HTTP MPI client is not yet
+// implemented; in production we require THREE_DS_MPI_URL and refuse to fall
+// back to the dummy. When DEV_MODE=1 the DummyClient is used.
+func newMPIClient(cfg config.Config, devMode bool) mpi.Client {
+	if devMode {
+		log.Printf("DEV_MODE=1: using mpi.NewDummy() — NOT FOR PRODUCTION")
+		return mpi.NewDummy()
+	}
+	if cfg.ThreeDSMPIURL == "" {
+		log.Fatalf("THREE_DS_MPI_URL not set and DEV_MODE!=1; real MPI client not yet implemented — set DEV_MODE=1 for local dev")
+	}
+	log.Fatalf("real MPI HTTP client not yet implemented (THREE_DS_MPI_URL=%s) — set DEV_MODE=1 for local dev", cfg.ThreeDSMPIURL)
+	return nil
+}
+
+// newFraudClient builds the fraud client. A real HTTP client exists
+// (fraud.NewHTTP) and is wired when FRAUD_URL is set; otherwise the dummy is
+// used only in DEV_MODE.
+func newFraudClient(cfg config.Config, devMode bool) fraud.Client {
+	if cfg.FraudURL != "" {
+		return fraud.NewHTTP(cfg.FraudURL)
+	}
+	if devMode {
+		log.Printf("DEV_MODE=1: FRAUD_URL unset — using fraud.NewDummy() (NOT FOR PRODUCTION)")
+		return fraud.NewDummy()
+	}
+	log.Fatalf("FRAUD_URL not set and DEV_MODE!=1; refusing to start in production mode — set DEV_MODE=1 for local dev")
+	return nil
 }
 
 func newAuditSink(devMode bool) audit.Sink {

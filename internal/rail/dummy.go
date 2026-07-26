@@ -95,14 +95,39 @@ func (d *DummyAdapter) Verify3DS(i *domain.Intent, challengeResult string) error
 
 // Registry selects an Adapter by rail name. In this simplified service every
 // rail maps to the same DummyAdapter; the indirection is kept so a real
-// implementation could swap per-rail connectors later.
+// implementation can swap per-rail connectors later.
 type Registry struct {
-	dummy *DummyAdapter
+	dummy    *DummyAdapter
+	byRail   map[domain.Rail]Adapter
+	fallback Adapter
 }
 
-// NewRegistry builds a Registry backed by the given dummy adapter.
-func NewRegistry(d *DummyAdapter) *Registry { return &Registry{dummy: d} }
+// NewRegistry builds a Registry backed by the given dummy adapter. The dummy
+// is used for every rail as the fallback. Use NewRegistryFromMap to wire real
+// per-rail adapters.
+func NewRegistry(d *DummyAdapter) *Registry { return &Registry{dummy: d, fallback: d} }
 
-// For returns the Adapter for the given rail. Unknown rails get the dummy
-// adapter too; rail validation happens at the handler layer.
-func (r *Registry) For(_ domain.Rail) Adapter { return r.dummy }
+// NewRegistryFromMap builds a Registry from an explicit per-rail Adapter
+// map. Any rail not present in the map falls back to the dummy adapter when
+// set, otherwise returns nil.
+func NewRegistryFromMap(byRail map[domain.Rail]Adapter, fallback Adapter) *Registry {
+	return &Registry{byRail: byRail, fallback: fallback}
+}
+
+// For returns the Adapter for the given rail. Unknown rails get the fallback
+// adapter (the dummy when constructed via NewRegistry); rail validation
+// happens at the handler layer.
+func (r *Registry) For(rail domain.Rail) Adapter {
+	if r.byRail != nil {
+		if a, ok := r.byRail[rail]; ok {
+			return a
+		}
+	}
+	if r.fallback != nil {
+		return r.fallback
+	}
+	if r.dummy != nil {
+		return r.dummy
+	}
+	return nil
+}

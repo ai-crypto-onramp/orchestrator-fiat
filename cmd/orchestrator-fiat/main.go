@@ -6,11 +6,14 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"testing"
 
 	"github.com/ai-crypto-onramp/orchestrator-fiat/internal/api"
 	"github.com/ai-crypto-onramp/orchestrator-fiat/internal/audit"
 	"github.com/ai-crypto-onramp/orchestrator-fiat/internal/config"
+	"github.com/ai-crypto-onramp/orchestrator-fiat/internal/domain"
 	"github.com/ai-crypto-onramp/orchestrator-fiat/internal/fraud"
+	"github.com/ai-crypto-onramp/orchestrator-fiat/internal/idempotency"
 	"github.com/ai-crypto-onramp/orchestrator-fiat/internal/logging"
 	"github.com/ai-crypto-onramp/orchestrator-fiat/internal/mpi"
 	"github.com/ai-crypto-onramp/orchestrator-fiat/internal/otel"
@@ -55,38 +58,75 @@ func newService(cfg config.Config) *api.Service {
 	svc.MPI = mpiClient
 	svc.Fraud = fraudClient
 	svc.Logger = logger
+	if idemStore := newIdempotencyStore(context.Background(), cfg, devMode); idemStore != nil {
+		svc.WithIdempotencyStore(idemStore, cfg.IdempotencyKeyTTL)
+	}
 	return svc
 }
 
-// newRailRegistry builds the rail.Registry. A real per-rail HTTP connector
-// implementation does not yet exist in this service; in production (DEV_MODE
-// unset) we refuse to start with a clear message and require at least one
-// RAIL_*_URL to be configured. When DEV_MODE=1 the DummyAdapter is used.
-func newRailRegistry(cfg config.Config, devMode bool) *rail.Registry {
-	if devMode {
-		log.Printf("DEV_MODE=1: using rail.NewDummy() adapter for all rails — NOT FOR PRODUCTION")
-		return rail.NewRegistry(rail.NewDummy())
+// newIdempotencyStore builds the idempotency store from REDIS_URL. When
+// REDIS_URL is set, a Redis-backed store is returned (SET NX with TTL, shared
+// across replicas). When REDIS_URL is unset:
+//   - DEV_MODE=1 or the test binary: an in-memory store is used with a warning
+//     (state is per-process; replays across replicas are NOT deduplicated).
+//   - otherwise: fatal at startup — silently falling back to in-memory in
+//     production is a money-loss vector on retry across replicas.
+func newIdempotencyStore(ctx context.Context, cfg config.Config, devMode bool) idempotency.Store {
+	redisURL := os.Getenv("REDIS_URL")
+	if redisURL != "" {
+		st, err := idempotency.Open(ctx, redisURL)
+		if err != nil {
+			log.Fatalf("idempotency: open redis: %v — set REDIS_URL to a reachable Redis or unset it with DEV_MODE=1 for local dev", err)
+		}
+		log.Printf("idempotency: Redis-backed store enabled (REDIS_URL set, ttl=%s)", cfg.IdempotencyKeyTTL)
+		return st
 	}
-	enabled := cfg.EnabledRails()
-	if len(enabled) == 0 {
-		log.Fatalf("no RAIL_*_URL configured and DEV_MODE!=1; real rail client not yet implemented — set DEV_MODE=1 for local dev or provide RAIL_CARD_URL/RAIL_ACH_URL/RAIL_SEPA_URL/RAIL_PIX_URL/RAIL_UPI_URL")
+	if devMode || testing.Testing() {
+		log.Printf("warn: REDIS_URL unset and DEV_MODE=1 (or test binary); using in-memory idempotency store — replays across replicas are NOT deduplicated (NOT FOR PRODUCTION)")
+		return idempotency.NewMem()
 	}
-	log.Fatalf("real rail HTTP client not yet implemented (configured rails: %v) — set DEV_MODE=1 for local dev", enabled)
+	log.Fatal("REDIS_URL not set and DEV_MODE!=1; refusing to start in production mode — an in-memory idempotency store would lose dedup across replicas (money-loss on retry); set REDIS_URL or DEV_MODE=1 for local dev")
 	return nil
 }
 
-// newMPIClient builds the 3DS MPI client. A real HTTP MPI client is not yet
-// implemented; in production we require THREE_DS_MPI_URL and refuse to fall
-// back to the dummy. When DEV_MODE=1 the DummyClient is used.
-func newMPIClient(cfg config.Config, devMode bool) mpi.Client {
+// newRailRegistry builds the rail.Registry. Real per-rail HTTP adapters
+// (rail.NewHTTP) are wired for every RAIL_*_URL configured. In DEV_MODE with
+// no rail URLs configured, the DummyAdapter is used for all rails. In
+// production at least one RAIL_*_URL must be set.
+func newRailRegistry(cfg config.Config, devMode bool) *rail.Registry {
+	byRail := make(map[domain.Rail]rail.Adapter)
+	for r, url := range cfg.RailURLs {
+		if url == "" {
+			continue
+		}
+		byRail[r] = rail.NewHTTP(url, string(r))
+	}
+	if len(byRail) == 0 {
+		if devMode {
+			log.Printf("DEV_MODE=1: no RAIL_*_URL configured — using rail.NewDummy() for all rails — NOT FOR PRODUCTION")
+			return rail.NewRegistry(rail.NewDummy())
+		}
+		log.Fatalf("no RAIL_*_URL configured and DEV_MODE!=1; set DEV_MODE=1 for local dev or provide RAIL_CARD_URL/RAIL_ACH_URL/RAIL_SEPA_URL/RAIL_PIX_URL/RAIL_UPI_URL")
+	}
+	var fallback rail.Adapter
 	if devMode {
-		log.Printf("DEV_MODE=1: using mpi.NewDummy() — NOT FOR PRODUCTION")
+		fallback = rail.NewDummy()
+	}
+	return rail.NewRegistryFromMap(byRail, fallback)
+}
+
+// newMPIClient builds the 3DS MPI client. A real HTTP MPI client
+// (mpi.NewHTTP) is used when THREE_DS_MPI_URL is set; otherwise the dummy is
+// used only in DEV_MODE. In production THREE_DS_MPI_URL must be set.
+func newMPIClient(cfg config.Config, devMode bool) mpi.Client {
+	if cfg.ThreeDSMPIURL != "" {
+		return mpi.NewHTTP(cfg.ThreeDSMPIURL)
+	}
+	if devMode {
+		log.Printf("DEV_MODE=1: THREE_DS_MPI_URL unset — using mpi.NewDummy() — NOT FOR PRODUCTION")
 		return mpi.NewDummy()
 	}
-	if cfg.ThreeDSMPIURL == "" {
-		log.Fatalf("THREE_DS_MPI_URL not set and DEV_MODE!=1; real MPI client not yet implemented — set DEV_MODE=1 for local dev")
-	}
-	log.Fatalf("real MPI HTTP client not yet implemented (THREE_DS_MPI_URL=%s) — set DEV_MODE=1 for local dev", cfg.ThreeDSMPIURL)
+	log.Fatalf("THREE_DS_MPI_URL not set and DEV_MODE!=1; real MPI client required in production — set DEV_MODE=1 for local dev")
 	return nil
 }
 

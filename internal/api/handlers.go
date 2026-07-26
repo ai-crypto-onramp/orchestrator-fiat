@@ -18,6 +18,7 @@ import (
 	"github.com/ai-crypto-onramp/orchestrator-fiat/internal/config"
 	"github.com/ai-crypto-onramp/orchestrator-fiat/internal/domain"
 	"github.com/ai-crypto-onramp/orchestrator-fiat/internal/fraud"
+	"github.com/ai-crypto-onramp/orchestrator-fiat/internal/idempotency"
 	"github.com/ai-crypto-onramp/orchestrator-fiat/internal/logging"
 	"github.com/ai-crypto-onramp/orchestrator-fiat/internal/metrics"
 	"github.com/ai-crypto-onramp/orchestrator-fiat/internal/mpi"
@@ -38,6 +39,9 @@ type Service struct {
 	Fraud        fraud.Client
 	Metrics      *metrics.Metrics
 	Logger       *logging.Logger
+
+	idemStore idempotency.Store
+	idemTTL   time.Duration
 
 	idemMu    sync.Mutex
 	idemCache map[string]idemEntry
@@ -68,8 +72,21 @@ func NewService(s store.Store, r *rail.Registry, a audit.Sink, webhookKey string
 		Fraud:        fraud.NewDummy(),
 		Metrics:      metrics.New(),
 		Logger:       logging.New(io.Discard, logging.LevelInfo),
+		idemTTL:      idemTTL,
 		idemCache:    make(map[string]idemEntry),
 	}
+}
+
+// WithIdempotencyStore installs a Redis-backed (or other) idempotency store
+// and ttl. When set, write-side handlers deduplicate via the store instead of
+// the in-memory cache, so replays are correctly handled across replicas. When
+// unset, the in-memory cache is used (only suitable for tests / DEV_MODE).
+func (s *Service) WithIdempotencyStore(st idempotency.Store, ttl time.Duration) *Service {
+	s.idemStore = st
+	if ttl > 0 {
+		s.idemTTL = ttl
+	}
+	return s
 }
 
 // ApplyConfig overrides service settings from the given config.
@@ -149,6 +166,10 @@ func writeError(w http.ResponseWriter, status int, msg string) {
 
 func (s *Service) replayOrContinue(w http.ResponseWriter, r *http.Request, endpoint string, handle func() (int, interface{})) {
 	key := r.Header.Get("Idempotency-Key")
+	if s.idemStore != nil {
+		s.replayOrContinueStore(w, r, endpoint, key, handle)
+		return
+	}
 	if status, body, ok := s.lookupIdem(endpoint, key); ok {
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Idempotency-Replay", "true")
@@ -162,6 +183,56 @@ func (s *Service) replayOrContinue(w http.ResponseWriter, r *http.Request, endpo
 		body, _ = json.Marshal(v)
 	}
 	s.saveIdem(endpoint, key, status, body)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	if v != nil {
+		_, _ = w.Write(body)
+	}
+}
+
+// replayOrContinueStore is the Redis-backed idempotency path. It scopes the
+// stored key as "endpoint\x00key" to match the in-memory layout, claims the
+// key via SET NX, runs the handler on the first caller, stores the response,
+// and replays the cached response on subsequent callers. A second caller that
+// arrives while the first is still processing (claim held, response not yet
+// stored) receives a 409 Conflict to surface the in-flight dedup.
+func (s *Service) replayOrContinueStore(w http.ResponseWriter, r *http.Request, endpoint, key string, handle func() (int, interface{})) {
+	if key == "" {
+		status, v := handle()
+		writeJSON(w, status, v)
+		return
+	}
+	scoped := idemKey{endpoint, key}.String()
+	ctx := r.Context()
+	if ent, ok, err := s.idemStore.LookupResponse(ctx, scoped); err != nil {
+		s.Logger.Error("idempotency lookup failed", map[string]interface{}{"err": err.Error()})
+		writeError(w, http.StatusInternalServerError, "idempotency lookup failed")
+		return
+	} else if ok {
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Idempotency-Replay", "true")
+		w.WriteHeader(ent.Status)
+		_, _ = w.Write(ent.Body)
+		return
+	}
+	claimed, err := s.idemStore.Claim(ctx, scoped, s.idemTTL)
+	if err != nil {
+		s.Logger.Error("idempotency claim failed", map[string]interface{}{"err": err.Error()})
+		writeError(w, http.StatusInternalServerError, "idempotency claim failed")
+		return
+	}
+	if !claimed {
+		writeError(w, http.StatusConflict, "idempotency key in flight")
+		return
+	}
+	status, v := handle()
+	var body []byte
+	if v != nil {
+		body, _ = json.Marshal(v)
+	}
+	if err := s.idemStore.StoreResponse(ctx, scoped, idempotency.Entry{Status: status, Body: body}, s.idemTTL); err != nil {
+		s.Logger.Error("idempotency store failed", map[string]interface{}{"err": err.Error()})
+	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	if v != nil {
